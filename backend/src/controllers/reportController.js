@@ -502,6 +502,62 @@ export const exportAttendanceExcel = async (req, res) => {
   }
 };
 
+export const exportAttendancePDF = async (req, res) => {
+  try {
+    const filter = getAttendanceFilter(req.query, req.user.center);
+
+    const attendanceRecords = await Attendance.find(filter)
+      .populate("student", "firstName lastName registrationNumber")
+      .populate("group", "name subject")
+      .populate("recordedBy", "fullName")
+      .sort({ date: -1, sessionStartTime: 1 })
+      .lean();
+
+    const rows = attendanceRecords.map((record) => [
+      record.student ? `${record.student.firstName} ${record.student.lastName}` : "-",
+      record.student?.registrationNumber || "-",
+      record.group?.name || "-",
+      record.group?.subject || "-",
+      formatDate(record.date),
+      record.sessionStartTime || "-",
+      record.status || "-",
+      record.notes || "-",
+    ]);
+
+    const pageWidth = 842 - 60;
+    const widths = [
+      pageWidth * 0.18,
+      pageWidth * 0.12,
+      pageWidth * 0.15,
+      pageWidth * 0.13,
+      pageWidth * 0.12,
+      pageWidth * 0.10,
+      pageWidth * 0.10,
+      pageWidth * 0.10,
+    ];
+
+    return createPdf(
+      res,
+      "presences.pdf",
+      "Relevé des présences",
+      [
+        "Élève",
+        "N° inscription",
+        "Groupe",
+        "Matière",
+        "Date",
+        "Heure",
+        "Statut",
+        "Notes",
+      ],
+      rows,
+      widths
+    );
+  } catch (error) {
+    return handleFilterError(error, res);
+  }
+};
+
 export const exportPaymentsExcel = async (req, res) => {
   try {
     const filter = getPaymentFilter(req.query, req.user.center);
