@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import Group from "../models/Group.js";
 import Attendance from "../models/Attendance.js";
 import Payment from "../models/Payment.js";
+import Notification from "../models/Notification.js";
 
 const TIME_ZONE = "Africa/Casablanca";
 
