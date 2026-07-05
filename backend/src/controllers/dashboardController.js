@@ -218,9 +218,11 @@ const getDashboardStatistics = async (req, res) => {
       monthAttendanceByStatus,
       paymentTotals,
       overduePayments,
+      studentLevels,
       monthlyStatistics,
       recentStudents,
       recentPayments,
+      recentNotifications,
     ] = await Promise.all([
       Student.countDocuments(studentFilter),
 
