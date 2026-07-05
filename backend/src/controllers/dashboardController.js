@@ -313,6 +313,17 @@ const getDashboardStatistics = async (req, res) => {
         },
       ]),
 
+      Student.aggregate([
+        { $match: { center: centerId, status: "active" } },
+        {
+          $group: {
+            _id: "$schoolLevel",
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
+
       (async () => {
         const months = [];
 
@@ -334,7 +345,7 @@ const getDashboardStatistics = async (req, res) => {
 
         return Promise.all(
           months.map(async (month) => {
-            const [newStudents, payments] = await Promise.all([
+            const [newStudents, payments, attendanceAgg] = await Promise.all([
               Student.countDocuments({
                 center: centerId,
                 createdAt: {
@@ -365,7 +376,31 @@ const getDashboardStatistics = async (req, res) => {
                   },
                 },
               ]),
+
+              Attendance.aggregate([
+                {
+                  $match: {
+                    center: centerId,
+                    date: {
+                      $gte: month.start,
+                      $lt: month.end,
+                    },
+                  },
+                },
+                {
+                  $group: {
+                    _id: "$status",
+                    count: { $sum: 1 },
+                  },
+                },
+              ]),
             ]);
+
+            const attTotal = attendanceAgg.reduce((acc, curr) => acc + curr.count, 0);
+            const attPresentOrLate = attendanceAgg
+              .filter((a) => a._id === "present" || a._id === "late")
+              .reduce((acc, curr) => acc + curr.count, 0);
+            const attRate = attTotal > 0 ? Math.round((attPresentOrLate / attTotal) * 100) : 0;
 
             return {
               year: month.year,
@@ -374,6 +409,8 @@ const getDashboardStatistics = async (req, res) => {
               newStudents,
               collected: payments[0]?.collected || 0,
               paymentCount: payments[0]?.paymentCount || 0,
+              sessionsCount: attTotal,
+              attendanceRate: attRate,
             };
           })
         );
@@ -394,6 +431,13 @@ const getDashboardStatistics = async (req, res) => {
       })
         .populate("student", "firstName lastName")
         .populate("group", "name")
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+
+      Notification.find({
+        center: centerId,
+      })
         .sort({ createdAt: -1 })
         .limit(5)
         .lean(),
@@ -474,6 +518,17 @@ const getDashboardStatistics = async (req, res) => {
       createdAt: payment.createdAt,
     }));
 
+    const colors = ["bg-rose-500", "bg-slate-800", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500"];
+    const levelDistribution = studentLevels.map((lvl, index) => {
+      const pct = activeStudents > 0 ? Math.round((lvl.count / activeStudents) * 100) : 0;
+      return {
+        name: lvl._id || "Non spécifié",
+        count: lvl.count,
+        pct,
+        color: colors[index % colors.length],
+      };
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -518,11 +573,13 @@ const getDashboardStatistics = async (req, res) => {
           overdueAmount: overdue.amountRemaining,
         },
 
+        levelDistribution,
         monthlyStatistics,
 
         recent: {
           students: recentStudents,
           payments: recentPaymentData,
+          notifications: recentNotifications,
         },
       },
     });
