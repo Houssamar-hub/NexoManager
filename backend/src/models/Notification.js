@@ -89,15 +89,7 @@ notificationSchema.index({
 });
 
 
-notificationSchema.index(
-  { center: 1, dedupeKey: 1 },
-  {
-    unique: true,
-    partialFilterExpression: {
-      dedupeKey: { $type: "string" },
-    },
-  }
-);
+
 
 const Notification = mongoose.model(
   "Notification",
