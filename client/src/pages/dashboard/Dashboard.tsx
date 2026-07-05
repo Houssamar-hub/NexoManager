@@ -580,20 +580,26 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3.5">
-              {levelDistribution.map((lvl) => (
-                <div key={lvl.name}>
-                  <div className="flex items-center justify-between text-xs font-semibold mb-1">
-                    <span className="text-slate-700 truncate max-w-[180px]">{lvl.name}</span>
-                    <span className="text-slate-900 font-extrabold">{lvl.pct}%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${lvl.color}`}
-                      style={{ width: `${lvl.pct}%` }}
-                    />
-                  </div>
+              {levelDistribution.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  Aucun élève ou niveau répertorié.
                 </div>
-              ))}
+              ) : (
+                levelDistribution.map((lvl) => (
+                  <div key={lvl.name}>
+                    <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                      <span className="text-slate-700 truncate max-w-[180px]">{lvl.name}</span>
+                      <span className="text-slate-900 font-extrabold">{lvl.pct}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${lvl.color}`}
+                        style={{ width: `${lvl.pct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -632,19 +638,26 @@ export const Dashboard: React.FC = () => {
                 </div>
               ) : null}
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Calendar className="w-4 h-4" />
+              {data.recent?.notifications && data.recent.notifications.length > 0 ? (
+                data.recent.notifications.map((notif: any) => (
+                  <div key={notif._id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900">{notif.title}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{notif.message}</p>
+                    </div>
+                  </div>
+                ))
+              ) : null}
+
+              {(!data.finance?.overduePaymentsCount || data.finance.overduePaymentsCount === 0) &&
+               (!data.recent?.notifications || data.recent.notifications.length === 0) ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  Aucun rappel ni alerte en attente. Tout est à jour !
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-900">
-                    Mise à jour des plannings de soutien
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Préparer les créneaux pour les examens blancs.
-                  </p>
-                </div>
-              </div>
+              ) : null}
             </div>
           </div>
 
