@@ -72,7 +72,7 @@ export const StudentDetail: React.FC = () => {
         </p>
         <button
           onClick={() => navigate("/students")}
-          className="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 transition"
+          className="px-4 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 transition"
         >
           Retour aux élèves
         </button>
@@ -117,7 +117,7 @@ export const StudentDetail: React.FC = () => {
 
         <button
           onClick={() => setEditModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-sm"
         >
           <Edit2 className="w-4 h-4" />
           <span>Modifier l'élève</span>
