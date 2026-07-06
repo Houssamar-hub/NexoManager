@@ -6,6 +6,7 @@ import {
   updatePayment,
   deletePayment,
   getPaymentStatistics,
+  generatePaymentReceipt,
 } from "../controllers/paymentController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/roleMiddleware.js";
@@ -21,6 +22,7 @@ router.use(protect);
 router.use(authorize("admin", "manager"));
 
 router.get("/statistics", getPaymentStatistics);
+router.get("/:id/receipt", generatePaymentReceipt);
 
 router
   .route("/")
