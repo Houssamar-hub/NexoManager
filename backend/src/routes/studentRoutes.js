@@ -5,6 +5,7 @@ import {
   getStudentById,
   updateStudent,
   deleteStudent,
+  generateEnrollmentCertificate,
 } from "../controllers/studentController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/roleMiddleware.js";
@@ -26,6 +27,8 @@ router
     validateBody(createStudentSchema),
     createStudent
   );
+
+router.get("/:id/certificate", generateEnrollmentCertificate);
 
 router
   .route("/:id")
