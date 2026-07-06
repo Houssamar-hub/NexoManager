@@ -150,6 +150,8 @@ export interface MonthlyStatistic {
   newStudents: number;
   collected: number;
   paymentCount: number;
+  sessionsCount?: number;
+  attendanceRate?: number;
 }
 
 export interface DashboardData {
@@ -199,8 +201,15 @@ export interface DashboardData {
     overdueAmount: number;
   };
   monthlyStatistics: MonthlyStatistic[];
+  levelDistribution?: {
+    name: string;
+    count: number;
+    pct: number;
+    color: string;
+  }[];
   recent: {
     students: any[];
     payments: any[];
+    notifications?: any[];
   };
 }
