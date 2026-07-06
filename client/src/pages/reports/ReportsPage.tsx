@@ -219,7 +219,7 @@ export const ReportsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-100 mt-6">
+          <div className="pt-6 border-t border-slate-100 mt-6 grid grid-cols-2 gap-2">
             <button
               onClick={() =>
                 downloadReport("attendance/excel", {
@@ -229,10 +229,25 @@ export const ReportsPage: React.FC = () => {
                   endDate: attendanceEndDate,
                 })
               }
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition"
+              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 transition"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Télécharger Excel (.xlsx)</span>
+              <span>Excel (.xlsx)</span>
+            </button>
+
+            <button
+              onClick={() =>
+                downloadReport("attendance/pdf", {
+                  group: attendanceGroup,
+                  status: attendanceStatus,
+                  startDate: attendanceStartDate,
+                  endDate: attendanceEndDate,
+                })
+              }
+              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold border border-rose-200 transition"
+            >
+              <FileText className="w-4 h-4 text-rose-600" />
+              <span>PDF (.pdf)</span>
             </button>
           </div>
         </div>
