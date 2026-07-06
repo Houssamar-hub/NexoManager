@@ -81,12 +81,7 @@ const notificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-notificationSchema.index({
-  center: 1,
-  recipient: 1,
-  isRead: 1,
-  createdAt: -1,
-});
+
 
 
 notificationSchema.index(
