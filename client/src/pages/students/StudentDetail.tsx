@@ -52,6 +52,11 @@ export const StudentDetail: React.FC = () => {
     fetchStudentDetail();
   }, [id]);
 
+  const handleDownloadCertificate = () => {
+    const token = localStorage.getItem("nexomanager_token");
+    window.open(`/api/students/${id}/certificate?token=${token || ""}`, "_blank");
+  };
+
   if (loading) {
     return (
       <div className="py-20 flex justify-center">
