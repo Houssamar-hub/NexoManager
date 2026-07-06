@@ -120,13 +120,22 @@ export const StudentDetail: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => setEditModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-sm"
-        >
-          <Edit2 className="w-4 h-4" />
-          <span>Modifier l'élève</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownloadCertificate}
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-sm"
+          >
+            <FileText className="w-4 h-4 text-rose-600" />
+            <span>Attestation d'inscription (PDF)</span>
+          </button>
+          <button
+            onClick={() => setEditModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-sm"
+          >
+            <Edit2 className="w-4 h-4" />
+            <span>Modifier l'élève</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Summary */}
