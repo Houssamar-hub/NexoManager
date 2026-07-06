@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
+  Printer,
+  MessageCircle,
 } from "lucide-react";
 import api from "../../api/client.ts";
 import { PaymentRecord, Group } from "../../types/index.ts";
@@ -152,6 +154,39 @@ export const PaymentsList: React.FC = () => {
     } catch (err) {
       console.error("Export PDF failed:", err);
     }
+  };
+
+  const handleDownloadReceipt = (paymentId: string) => {
+    const token = localStorage.getItem("nexomanager_token");
+    window.open(`/api/payments/${paymentId}/receipt?token=${token || ""}`, "_blank");
+  };
+
+  const handleWhatsAppShare = (p: any) => {
+    const rawPhone = p.student?.parentPhone || "";
+    let cleanPhone = rawPhone.replace(/[^0-9]/g, "");
+    if (cleanPhone.startsWith("0")) {
+      cleanPhone = "212" + cleanPhone.slice(1);
+    } else if (cleanPhone && !cleanPhone.startsWith("212") && cleanPhone.length === 9) {
+      cleanPhone = "212" + cleanPhone;
+    }
+
+    const studentName = `${p.student?.firstName || ""} ${p.student?.lastName || ""}`.trim();
+    const groupName = p.group?.name || "Cours de soutien";
+    const isPaid = p.paidAmount >= p.amount;
+    const remaining = Math.max(0, p.amount - p.paidAmount);
+
+    let message = "";
+    if (isPaid) {
+      message = `Bonjour,\n\nNous vous confirmons la bonne réception du règlement de ${p.paidAmount} MAD pour l'élève ${studentName} (${groupName}).\n\nMerci pour votre confiance.\nAdministration`;
+    } else {
+      const dueDateStr = p.dueDate ? new Date(p.dueDate).toLocaleDateString("fr-FR") : "";
+      message = `Bonjour,\n\nNous vous rappelons qu'un solde de ${remaining} MAD reste à régler pour l'élève ${studentName} (${groupName}) avant le ${dueDateStr}.\n\nMerci de vous rapprocher de l'administration pour régularisation.\nAdministration`;
+    }
+
+    const url = cleanPhone
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
   };
 
   return (
@@ -430,7 +465,21 @@ export const PaymentsList: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleDownloadReceipt(p._id)}
+                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                            title="Imprimer / Télécharger le reçu officiel (PDF)"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleWhatsAppShare(p)}
+                            className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition"
+                            title="Partager le reçu / Rappel WhatsApp au parent"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => {
                               setEditingPayment(p);
