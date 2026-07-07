@@ -90,9 +90,8 @@ const groupSchema = new mongoose.Schema(
       required: true,
     },
   },
-  {
-    timestamps: true,
-  }
+ 
+  
 );
 
 groupSchema.index({ center: 1, name: 1, subject: 1 });
