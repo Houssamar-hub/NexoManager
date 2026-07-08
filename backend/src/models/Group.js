@@ -84,7 +84,15 @@ const groupSchema = new mongoose.Schema(
       required: true,
     },
 
-
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
 );
 
 groupSchema.index({ center: 1, name: 1, subject: 1 });
