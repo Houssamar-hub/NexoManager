@@ -1,19 +1,23 @@
-import 'dotenv/config';
-import cors from 'cors';
-import express from 'express';
-import helmet from 'helmet';
+
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
 
 const app = express();
-const port = process.env.PORT || 5000;
 
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Welcome to NexoManager API",
+  });
 });
 
-app.listen(port, () => {
-  console.log(`Backend server listening on port ${port}`);
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`NexoManager API running on port ${PORT}`);
 });
