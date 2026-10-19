@@ -1,28 +1,43 @@
-import jwt from 'jsonwebtoken';
 
-export function authMiddleware(req, res, next) {
-  const authorization = req.get('authorization');
-  const [scheme, token] = authorization?.split(' ') ?? [];
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-  if (scheme !== 'Bearer' || !token) {
-    res.status(401).json({ success: false, message: 'Authentication required' });
-    return;
-  }
-
+export const protect = async (req, res, next) => {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (typeof payload === 'string' || typeof payload.sub !== 'string') {
-      res.status(401).json({ success: false, message: 'Invalid or expired token' });
-      return;
+    let token;
+
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer ")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
     }
 
-    req.user = { id: payload.sub };
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Accès refusé. Token manquant.",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur introuvable.",
+      });
+    }
+
+    req.user = user;
+
     next();
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ success: false, message: 'Invalid or expired token' });
-      return;
-    }
-    next(error);
+    return res.status(401).json({
+      success: false,
+      message: "Token invalide ou expiré.",
+    });
   }
-}
+};
