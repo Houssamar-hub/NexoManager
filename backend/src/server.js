@@ -12,6 +12,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import startNotificationScheduler from "./services/notificationScheduler.js";
+import reportRoutes from "./routes/reportRoutes.js";
+
 
 const app = express();
 
@@ -27,6 +29,7 @@ app.use("/api/attendances", attendanceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/reports", reportRoutes);
 
 startNotificationScheduler();
 
