@@ -20,6 +20,7 @@ router.use(authorize("admin", "manager"));
 
 router.route("/")
   .get(getTeachers)
+  
   .post(createTeacher);
 
 
