@@ -21,9 +21,12 @@ router.route("/")
   .get(getTeachers)
   .post(createTeacher);
 
+
 router.route("/:id")
   .get(getTeacherById)
+
   .patch(updateTeacher)
+  
   .delete(deleteTeacher);
 
 export default router;
