@@ -15,6 +15,7 @@ import { authorize } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 router.use(protect);
+
 router.use(authorize("admin", "manager"));
 
 router.route("/")
@@ -26,7 +27,7 @@ router.route("/:id")
   .get(getTeacherById)
 
   .patch(updateTeacher)
-  
+
   .delete(deleteTeacher);
 
 export default router;
