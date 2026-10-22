@@ -56,6 +56,20 @@ export const register = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Cet email est déjà utilisé",
+      });
+    }
+
+    createdCenter = await Center.create({
+      name: centerName.trim(),
+    });
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
