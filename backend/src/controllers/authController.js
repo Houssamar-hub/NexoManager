@@ -3,13 +3,6 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Center from "../models/Center.js";
 
-const generateToken = (userId) => {
-  return jwt.sign(
-    { id: userId },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-};
 
 export const register = async (req, res) => {
   let createdCenter;
