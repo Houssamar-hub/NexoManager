@@ -24,28 +24,7 @@ export const register = async (req, res) => {
       });
     }
 
-    if (
-      typeof fullName !== "string" ||
-      typeof email !== "string" ||
-      typeof password !== "string" ||
-      typeof centerName !== "string"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Format des données invalide",
-      });
-    }
-
-    if (
-      !fullName.trim() ||
-      !centerName.trim() ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Veuillez vérifier les informations saisies",
-      });
-    }
+ 
 
     if (password.length < 8) {
       return res.status(400).json({
