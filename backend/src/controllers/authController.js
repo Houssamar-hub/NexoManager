@@ -14,7 +14,15 @@ const generateToken = (userId) => {
 export const register = async (req, res) => {
   let createdCenter;
 
+  try {
+    const { fullName, email, password, centerName } = req.body;
 
+    if (!fullName || !email || !password || !centerName) {
+      return res.status(400).json({
+        success: false,
+        message: "Tous les champs sont obligatoires",
+      });
+    }
 
     if (
       typeof fullName !== "string" ||
