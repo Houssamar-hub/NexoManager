@@ -102,13 +102,7 @@ export const register = async (req, res) => {
       await Center.findByIdAndDelete(createdCenter._id).catch(() => {});
     }
 
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "Cet email est déjà utilisé",
-      });
-    }
-
+    
     console.error("Register error:", error.message);
 
     return res.status(500).json({
