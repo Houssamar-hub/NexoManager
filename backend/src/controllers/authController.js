@@ -24,7 +24,17 @@ export const register = async (req, res) => {
       });
     }
 
-
+    if (
+      typeof fullName !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      typeof centerName !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Format des données invalide",
+      });
+    }
 
     if (
       !fullName.trim() ||
