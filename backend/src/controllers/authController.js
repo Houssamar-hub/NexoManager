@@ -24,7 +24,16 @@ export const register = async (req, res) => {
       });
     }
 
- 
+    if (
+      !fullName.trim() ||
+      !centerName.trim() ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Veuillez vérifier les informations saisies",
+      });
+    }
 
     if (password.length < 8) {
       return res.status(400).json({
