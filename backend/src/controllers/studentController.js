@@ -1,5 +1,8 @@
-
+import mongoose from "mongoose";
 import Student from "../models/Student.js";
+import Group from "../models/Group.js";
+import Attendance from "../models/Attendance.js";
+import Payment from "../models/Payment.js";
 
 export const createStudent = async (req, res) => {
   try {
@@ -16,12 +19,7 @@ export const createStudent = async (req, res) => {
       notes,
     } = req.body;
 
-    if (
-      typeof firstName !== "string" ||
-      !firstName.trim() ||
-      typeof lastName !== "string" ||
-      !lastName.trim()
-    ) {
+    if (!firstName || !lastName) {
       return res.status(400).json({
         success: false,
         message: "Le prénom et le nom sont obligatoires",
@@ -35,23 +33,10 @@ export const createStudent = async (req, res) => {
       });
     }
 
-    if (
-      gender !== undefined &&
-      !["male", "female"].includes(gender)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Le genre est invalide",
-      });
-    }
-
-    if (dateOfBirth !== undefined && dateOfBirth !== "") {
-      const date = new Date(dateOfBirth);
-
-      if (
-        Number.isNaN(date.getTime()) ||
-        date > new Date()
-      ) {
+    let parsedDob;
+    if (dateOfBirth) {
+      parsedDob = new Date(dateOfBirth);
+      if (Number.isNaN(parsedDob.getTime()) || parsedDob > new Date()) {
         return res.status(400).json({
           success: false,
           message: "La date de naissance est invalide",
@@ -59,17 +44,34 @@ export const createStudent = async (req, res) => {
       }
     }
 
+    const regNum = registrationNumber?.trim() || undefined;
+
+    if (regNum) {
+      const existing = await Student.findOne({
+        center: req.user.center,
+        registrationNumber: regNum,
+      });
+
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          message: "Ce numéro d'inscription existe déjà dans ce centre",
+        });
+      }
+    }
+
     const student = await Student.create({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      dateOfBirth: dateOfBirth || undefined,
+      dateOfBirth: parsedDob,
       gender,
-      parentName,
-      parentPhone,
-      parentEmail,
-      schoolLevel,
-      registrationNumber: registrationNumber || undefined,
-      notes,
+      parentName: parentName?.trim() || undefined,
+      parentPhone: parentPhone?.trim() || undefined,
+      parentEmail: parentEmail?.trim().toLowerCase() || undefined,
+      schoolLevel: schoolLevel?.trim() || undefined,
+      registrationNumber: regNum,
+      notes: notes?.trim() || undefined,
+      status: "active",
       center: req.user.center,
       createdBy: req.user._id,
     });
@@ -87,7 +89,7 @@ export const createStudent = async (req, res) => {
       });
     }
 
-    console.error("Create student error:", error.message);
+    console.error("Create student error:", error);
 
     return res.status(500).json({
       success: false,
@@ -98,7 +100,7 @@ export const createStudent = async (req, res) => {
 
 export const getStudents = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, schoolLevel, search, page, limit } = req.query;
 
     const filter = {
       center: req.user.center,
@@ -108,9 +110,13 @@ export const getStudents = async (req, res) => {
       filter.status = status;
     }
 
-    if (search && typeof search === "string") {
+    if (schoolLevel && typeof schoolLevel === "string" && schoolLevel.trim()) {
+      filter.schoolLevel = schoolLevel.trim();
+    }
+
+    if (search && typeof search === "string" && search.trim()) {
       const searchRegex = new RegExp(
-        search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
         "i"
       );
 
@@ -119,20 +125,33 @@ export const getStudents = async (req, res) => {
         { lastName: searchRegex },
         { registrationNumber: searchRegex },
         { parentPhone: searchRegex },
+        { parentName: searchRegex },
       ];
     }
 
-    const students = await Student.find(filter).sort({
-      createdAt: -1,
-    });
+    const pageNum = parseInt(page, 10) > 0 ? parseInt(page, 10) : 1;
+    const limitNum = parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 50;
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, students] = await Promise.all([
+      Student.countDocuments(filter),
+      Student.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+    ]);
 
     return res.status(200).json({
       success: true,
       count: students.length,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum) || 1,
       students,
     });
   } catch (error) {
-    console.error("Get students error:", error.message);
+    console.error("Get students error:", error);
 
     return res.status(500).json({
       success: false,
@@ -143,10 +162,17 @@ export const getStudents = async (req, res) => {
 
 export const getStudentById = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifiant invalide",
+      });
+    }
+
     const student = await Student.findOne({
       _id: req.params.id,
       center: req.user.center,
-    });
+    }).lean();
 
     if (!student) {
       return res.status(404).json({
@@ -155,19 +181,80 @@ export const getStudentById = async (req, res) => {
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      student,
-    });
-  } catch (error) {
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Identifiant invalide",
-      });
+    // Fetch student's groups
+    const groups = await Group.find({
+      center: req.user.center,
+      students: student._id,
+    })
+      .select("_id name subject schoolLevel schedule status")
+      .lean();
+
+    // Fetch attendance summary
+    const [attendanceTotal, attendancePresent, attendanceAbsent, attendanceLate] =
+      await Promise.all([
+        Attendance.countDocuments({ center: req.user.center, student: student._id }),
+        Attendance.countDocuments({
+          center: req.user.center,
+          student: student._id,
+          status: "present",
+        }),
+        Attendance.countDocuments({
+          center: req.user.center,
+          student: student._id,
+          status: "absent",
+        }),
+        Attendance.countDocuments({
+          center: req.user.center,
+          student: student._id,
+          status: "late",
+        }),
+      ]);
+
+    // Fetch payments summary
+    const payments = await Payment.find({
+      center: req.user.center,
+      student: student._id,
+    })
+      .sort({ dueDate: -1 })
+      .lean();
+
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let totalRemaining = 0;
+
+    for (const p of payments) {
+      totalBilled += p.amount;
+      totalPaid += p.paidAmount;
+      totalRemaining += Math.max(0, p.amount - p.paidAmount);
     }
 
-    console.error("Get student error:", error.message);
+    return res.status(200).json({
+      success: true,
+      student: {
+        ...student,
+        id: student._id,
+        groups,
+        attendanceStats: {
+          total: attendanceTotal,
+          present: attendancePresent,
+          absent: attendanceAbsent,
+          late: attendanceLate,
+          attendanceRate:
+            attendanceTotal > 0
+              ? Math.round(((attendancePresent + attendanceLate) / attendanceTotal) * 100)
+              : 0,
+        },
+        financialStats: {
+          totalBilled,
+          totalPaid,
+          totalRemaining,
+          paymentsCount: payments.length,
+        },
+        recentPayments: payments.slice(0, 10),
+      },
+    });
+  } catch (error) {
+    console.error("Get student error:", error);
 
     return res.status(500).json({
       success: false,
@@ -178,6 +265,13 @@ export const getStudentById = async (req, res) => {
 
 export const updateStudent = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifiant invalide",
+      });
+    }
+
     const allowedFields = [
       "firstName",
       "lastName",
@@ -193,99 +287,45 @@ export const updateStudent = async (req, res) => {
     ];
 
     const updates = {};
-    const fields = Object.keys(req.body);
+    for (const key of Object.keys(req.body)) {
+      if (allowedFields.includes(key)) {
+        updates[key] = req.body[key];
+      }
+    }
 
-    if (fields.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         success: false,
         message: "Aucune information à modifier",
       });
     }
 
-    const invalidFields = fields.filter(
-      (field) => !allowedFields.includes(field)
-    );
-
-    if (invalidFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Certains champs ne peuvent pas être modifiés",
-      });
-    }
-
-    for (const field of fields) {
-      const value = req.body[field];
-
-      if (
-        value !== null &&
-        value !== undefined &&
-        typeof value !== "string" &&
-        field !== "dateOfBirth"
-      ) {
+    if (updates.dateOfBirth) {
+      const d = new Date(updates.dateOfBirth);
+      if (Number.isNaN(d.getTime()) || d > new Date()) {
         return res.status(400).json({
           success: false,
-          message: `Le champ ${field} est invalide`,
+          message: "Date de naissance invalide",
         });
       }
-
-      updates[field] =
-        typeof value === "string" ? value.trim() : value;
+      updates.dateOfBirth = d;
     }
 
-    if (
-      ("firstName" in updates && !updates.firstName) ||
-      ("lastName" in updates && !updates.lastName)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Le prénom et le nom ne peuvent pas être vides",
+    if (updates.registrationNumber) {
+      const reg = updates.registrationNumber.trim();
+      const existing = await Student.findOne({
+        center: req.user.center,
+        registrationNumber: reg,
+        _id: { $ne: req.params.id },
       });
-    }
 
-    if (
-      updates.gender !== undefined &&
-      !["male", "female"].includes(updates.gender)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Le genre est invalide",
-      });
-    }
-
-    if (
-      updates.status !== undefined &&
-      !["active", "suspended", "left"].includes(updates.status)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Le statut est invalide",
-      });
-    }
-
-    if (updates.dateOfBirth === "") {
-      updates.dateOfBirth = undefined;
-    } else if (updates.dateOfBirth !== undefined) {
-      const date = new Date(updates.dateOfBirth);
-
-      if (
-        Number.isNaN(date.getTime()) ||
-        date > new Date()
-      ) {
-        return res.status(400).json({
+      if (existing) {
+        return res.status(409).json({
           success: false,
-          message: "La date de naissance est invalide",
+          message: "Ce numéro d'inscription existe déjà dans ce centre",
         });
       }
-
-      updates.dateOfBirth = date;
-    }
-
-    if (updates.parentEmail) {
-      updates.parentEmail = updates.parentEmail.toLowerCase();
-    }
-
-    if (updates.registrationNumber === "") {
-      updates.registrationNumber = undefined;
+      updates.registrationNumber = reg;
     }
 
     const student = await Student.findOneAndUpdate(
@@ -294,10 +334,7 @@ export const updateStudent = async (req, res) => {
         center: req.user.center,
       },
       { $set: updates },
-      {
-        new: true,
-        runValidators: true,
-      }
+      { new: true, runValidators: true }
     );
 
     if (!student) {
@@ -320,14 +357,7 @@ export const updateStudent = async (req, res) => {
       });
     }
 
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Identifiant ou données invalides",
-      });
-    }
-
-    console.error("Update student error:", error.message);
+    console.error("Update student error:", error);
 
     return res.status(500).json({
       success: false,
@@ -338,8 +368,18 @@ export const updateStudent = async (req, res) => {
 
 export const deleteStudent = async (req, res) => {
   try {
-    const student = await Student.findOneAndDelete({
-      _id: req.params.id,
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifiant invalide",
+      });
+    }
+
+    const studentId = req.params.id;
+
+    // Check if student belongs to the center
+    const student = await Student.findOne({
+      _id: studentId,
       center: req.user.center,
     });
 
@@ -350,19 +390,34 @@ export const deleteStudent = async (req, res) => {
       });
     }
 
+    // Safe deletion policy: check for attendance or payment references
+    const [hasAttendance, hasPayments] = await Promise.all([
+      Attendance.exists({ center: req.user.center, student: studentId }),
+      Payment.exists({ center: req.user.center, student: studentId }),
+    ]);
+
+    if (hasAttendance || hasPayments) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Cet élève possède un historique de présences ou de paiements. Pour préserver l'intégrité comptable et pédagogique, changez son statut en 'left' (parti) ou 'suspended' au lieu de le supprimer définitivement.",
+      });
+    }
+
+    // Remove student from any groups
+    await Group.updateMany(
+      { center: req.user.center, students: studentId },
+      { $pull: { students: studentId } }
+    );
+
+    await Student.findByIdAndDelete(studentId);
+
     return res.status(200).json({
       success: true,
       message: "Élève supprimé avec succès",
     });
   } catch (error) {
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Identifiant invalide",
-      });
-    }
-
-    console.error("Delete student error:", error.message);
+    console.error("Delete student error:", error);
 
     return res.status(500).json({
       success: false,
