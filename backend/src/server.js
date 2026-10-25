@@ -1,7 +1,9 @@
-
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { connectDB } from "./config/db.js";
+
 import authRoutes from "./routes/authRoutes.js";
 import centerRoutes from "./routes/centerRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
@@ -11,37 +13,120 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-import startNotificationScheduler from "./services/notificationScheduler.js";
 import reportRoutes from "./routes/reportRoutes.js";
-
+import startNotificationScheduler from "./services/notificationScheduler.js";
 
 const app = express();
 
+// Security headers
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+
+// CORS configuration with allowed origins
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS non autorisé par la politique de sécurité"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Health Check
+app.get(["/health", "/api/health"], (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    service: "NexoManager API",
+  });
+});
+
+// Root welcome
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Bienvenue sur l'API NexoManager - SaaS de Gestion de Centres Pédagogiques",
+    version: "1.0.0",
+  });
+});
+
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/centers", centerRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/teachers", teacherRoutes);
-app.use("/api/attendances", attendanceRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/attendances", attendanceRoutes); // backward compatibility
 app.use("/api/payments", paymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reports", reportRoutes);
 
-startNotificationScheduler();
-
-app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Welcome to NexoManager API",
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route introuvable : ${req.method} ${req.originalUrl}`,
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// Centralized Error Handler
+app.use((err, req, res, next) => {
+  console.error("Unhandled API error:", err);
 
-app.listen(PORT, () => {
-  console.log(`NexoManager API running on port ${PORT}`);
+  const statusCode = err.statusCode || 500;
+  const message =
+    process.env.NODE_ENV === "production" && statusCode === 500
+      ? "Une erreur interne est survenue"
+      : err.message || "Erreur serveur";
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+  });
 });
+
+// Connect Database & Start Scheduler
+const startServer = async () => {
+  try {
+    if (process.env.NODE_ENV !== "test") {
+      await connectDB();
+      startNotificationScheduler();
+    }
+
+    const PORT = process.env.PORT || 5000;
+    if (process.env.NODE_ENV !== "test") {
+      app.listen(PORT, () => {
+        console.log(`[NexoManager] Server running on port ${PORT} (env: ${process.env.NODE_ENV || "development"})`);
+      });
+    }
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+export default app;
