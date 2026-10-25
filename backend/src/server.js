@@ -116,17 +116,21 @@ const startServer = async () => {
     }
 
     const PORT = process.env.PORT || 5000;
-    if (process.env.NODE_ENV !== "test") {
-      app.listen(PORT, () => {
-        console.log(`[NexoManager] Server running on port ${PORT} (env: ${process.env.NODE_ENV || "development"})`);
-      });
-    }
+    app.listen(PORT, () => {
+      console.log(`[NexoManager] Server running on port ${PORT} (env: ${process.env.NODE_ENV || "development"})`);
+    });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
 };
 
-startServer();
+const isDirectRun =
+  process.argv[1] &&
+  (process.argv[1].endsWith("server.js") || process.argv[1].endsWith("server"));
+
+if (isDirectRun && process.env.NODE_ENV !== "test") {
+  startServer();
+}
 
 export default app;
