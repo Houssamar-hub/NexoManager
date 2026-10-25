@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import Group from "../models/Group.js";
 import Student from "../models/Student.js";
@@ -16,14 +15,7 @@ export const createGroup = async (req, res) => {
       schedule,
     } = req.body;
 
-    if (
-      typeof name !== "string" ||
-      !name.trim() ||
-      typeof subject !== "string" ||
-      !subject.trim() ||
-      typeof schoolLevel !== "string" ||
-      !schoolLevel.trim()
-    ) {
+    if (!name || !subject || !schoolLevel) {
       return res.status(400).json({
         success: false,
         message: "Le nom, la matière et le niveau sont obligatoires",
@@ -34,16 +26,6 @@ export const createGroup = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Aucun centre associé à ce compte",
-      });
-    }
-
-    if (
-      capacity !== undefined &&
-      (!Number.isInteger(capacity) || capacity < 1)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "La capacité doit être un entier positif",
       });
     }
 
@@ -59,51 +41,14 @@ export const createGroup = async (req, res) => {
         _id: teacher,
         center: req.user.center,
         role: "teacher",
+        status: "active",
       });
 
       if (!teacherExists) {
         return res.status(400).json({
           success: false,
-          message: "Professeur introuvable dans ce centre",
+          message: "Professeur actif introuvable dans ce centre",
         });
-      }
-    }
-
-    if (schedule !== undefined && !Array.isArray(schedule)) {
-      return res.status(400).json({
-        success: false,
-        message: "Le planning doit être une liste",
-      });
-    }
-
-    if (schedule) {
-      const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ];
-
-      const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-      for (const slot of schedule) {
-        if (
-          !slot ||
-          !validDays.includes(slot.day) ||
-          typeof slot.startTime !== "string" ||
-          typeof slot.endTime !== "string" ||
-          !validTime.test(slot.startTime) ||
-          !validTime.test(slot.endTime) ||
-          slot.startTime >= slot.endTime
-        ) {
-          return res.status(400).json({
-            success: false,
-            message: "Un créneau du planning est invalide",
-          });
-        }
       }
     }
 
@@ -111,12 +56,13 @@ export const createGroup = async (req, res) => {
       name: name.trim(),
       subject: subject.trim(),
       schoolLevel: schoolLevel.trim(),
-      description,
+      description: description?.trim() || undefined,
       teacher: teacher || undefined,
-      capacity: capacity ?? 20,
-      schedule: schedule ?? [],
+      capacity: capacity ? Number(capacity) : 20,
+      schedule: schedule || [],
       center: req.user.center,
       createdBy: req.user._id,
+      status: "active",
     });
 
     return res.status(201).json({
@@ -125,7 +71,7 @@ export const createGroup = async (req, res) => {
       group,
     });
   } catch (error) {
-    console.error("Create group error:", error.message);
+    console.error("Create group error:", error);
 
     return res.status(500).json({
       success: false,
@@ -136,33 +82,68 @@ export const createGroup = async (req, res) => {
 
 export const getGroups = async (req, res) => {
   try {
+    const { status, subject, schoolLevel, teacher, search } = req.query;
+
     const filter = {
       center: req.user.center,
     };
 
-    if (req.query.status) {
-      if (!["active", "inactive"].includes(req.query.status)) {
-        return res.status(400).json({
-          success: false,
-          message: "Statut invalide",
-        });
-      }
+    if (status && ["active", "inactive"].includes(status)) {
+      filter.status = status;
+    }
 
-      filter.status = req.query.status;
+    if (subject && typeof subject === "string") {
+      filter.subject = subject.trim();
+    }
+
+    if (schoolLevel && typeof schoolLevel === "string") {
+      filter.schoolLevel = schoolLevel.trim();
+    }
+
+    if (teacher && mongoose.isValidObjectId(teacher)) {
+      filter.teacher = teacher;
+    }
+
+    // If teacher role, only allow viewing their assigned groups or center groups
+    if (req.user.role === "teacher") {
+      // Teachers can see their own groups or all groups in read-only
+      // Let's filter to their own groups if requested
+      if (req.query.myGroups === "true") {
+        filter.teacher = req.user._id;
+      }
+    }
+
+    if (search && typeof search === "string" && search.trim()) {
+      const searchRegex = new RegExp(
+        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      filter.$or = [
+        { name: searchRegex },
+        { subject: searchRegex },
+        { schoolLevel: searchRegex },
+      ];
     }
 
     const groups = await Group.find(filter)
-      .populate("teacher", "fullName email")
-      .populate("students", "firstName lastName registrationNumber")
-      .sort({ createdAt: -1 });
+      .populate("teacher", "fullName email phone specialization status")
+      .populate("students", "firstName lastName registrationNumber schoolLevel status")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formattedGroups = groups.map((g) => ({
+      ...g,
+      id: g._id,
+      enrolledCount: g.students ? g.students.length : 0,
+    }));
 
     return res.status(200).json({
       success: true,
-      count: groups.length,
-      groups,
+      count: formattedGroups.length,
+      groups: formattedGroups,
     });
   } catch (error) {
-    console.error("Get groups error:", error.message);
+    console.error("Get groups error:", error);
 
     return res.status(500).json({
       success: false,
@@ -184,8 +165,12 @@ export const getGroupById = async (req, res) => {
       _id: req.params.id,
       center: req.user.center,
     })
-      .populate("teacher", "fullName email")
-      .populate("students", "firstName lastName registrationNumber");
+      .populate("teacher", "fullName email phone specialization status")
+      .populate(
+        "students",
+        "firstName lastName registrationNumber schoolLevel parentPhone parentName status"
+      )
+      .lean();
 
     if (!group) {
       return res.status(404).json({
@@ -196,10 +181,14 @@ export const getGroupById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      group,
+      group: {
+        ...group,
+        id: group._id,
+        enrolledCount: group.students ? group.students.length : 0,
+      },
     });
   } catch (error) {
-    console.error("Get group error:", error.message);
+    console.error("Get group error:", error);
 
     return res.status(500).json({
       success: false,
@@ -210,26 +199,10 @@ export const getGroupById = async (req, res) => {
 
 export const updateGroup = async (req, res) => {
   try {
-    const allowedFields = [
-      "name",
-      "subject",
-      "schoolLevel",
-      "description",
-      "teacher",
-      "capacity",
-      "schedule",
-      "status",
-    ];
-
-    const fields = Object.keys(req.body);
-
-    if (
-      fields.length === 0 ||
-      fields.some((field) => !allowedFields.includes(field))
-    ) {
+    if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
         success: false,
-        message: "Champs invalides ou aucune modification demandée",
+        message: "Identifiant invalide",
       });
     }
 
@@ -245,51 +218,21 @@ export const updateGroup = async (req, res) => {
       });
     }
 
-    const { name, subject, schoolLevel, description, teacher, capacity, schedule, status } = req.body;
+    const {
+      name,
+      subject,
+      schoolLevel,
+      description,
+      teacher,
+      capacity,
+      schedule,
+      status,
+    } = req.body;
 
-    if (name !== undefined) {
-      if (typeof name !== "string" || !name.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Nom invalide",
-        });
-      }
-
-      group.name = name.trim();
-    }
-
-    if (subject !== undefined) {
-      if (typeof subject !== "string" || !subject.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Matière invalide",
-        });
-      }
-
-      group.subject = subject.trim();
-    }
-
-    if (schoolLevel !== undefined) {
-      if (typeof schoolLevel !== "string" || !schoolLevel.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "Niveau invalide",
-        });
-      }
-
-      group.schoolLevel = schoolLevel.trim();
-    }
-
-    if (description !== undefined) {
-      if (typeof description !== "string") {
-        return res.status(400).json({
-          success: false,
-          message: "Description invalide",
-        });
-      }
-
-      group.description = description.trim();
-    }
+    if (name !== undefined) group.name = name.trim();
+    if (subject !== undefined) group.subject = subject.trim();
+    if (schoolLevel !== undefined) group.schoolLevel = schoolLevel.trim();
+    if (description !== undefined) group.description = description.trim();
 
     if (teacher !== undefined) {
       if (teacher === null || teacher === "") {
@@ -306,12 +249,13 @@ export const updateGroup = async (req, res) => {
           _id: teacher,
           center: req.user.center,
           role: "teacher",
+          status: "active",
         });
 
         if (!teacherExists) {
           return res.status(400).json({
             success: false,
-            message: "Professeur introuvable dans ce centre",
+            message: "Professeur actif introuvable dans ce centre",
           });
         }
 
@@ -320,71 +264,22 @@ export const updateGroup = async (req, res) => {
     }
 
     if (capacity !== undefined) {
-      if (!Number.isInteger(capacity) || capacity < 1) {
+      const capNum = Number(capacity);
+      if (capNum < group.students.length) {
         return res.status(400).json({
           success: false,
-          message: "Capacité invalide",
+          message:
+            "La capacité ne peut pas être inférieure au nombre d'élèves déjà inscrits",
         });
       }
-
-      if (capacity < group.students.length) {
-        return res.status(400).json({
-          success: false,
-          message: "La capacité ne peut pas être inférieure au nombre d'élèves inscrits",
-        });
-      }
-
-      group.capacity = capacity;
+      group.capacity = capNum;
     }
 
     if (schedule !== undefined) {
-      if (!Array.isArray(schedule)) {
-        return res.status(400).json({
-          success: false,
-          message: "Le planning doit être une liste",
-        });
-      }
-
-      const validDays = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-      ];
-
-      const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-      for (const slot of schedule) {
-        if (
-          !slot ||
-          !validDays.includes(slot.day) ||
-          typeof slot.startTime !== "string" ||
-          typeof slot.endTime !== "string" ||
-          !validTime.test(slot.startTime) ||
-          !validTime.test(slot.endTime) ||
-          slot.startTime >= slot.endTime
-        ) {
-          return res.status(400).json({
-            success: false,
-            message: "Un créneau du planning est invalide",
-          });
-        }
-      }
-
       group.schedule = schedule;
     }
 
     if (status !== undefined) {
-      if (!["active", "inactive"].includes(status)) {
-        return res.status(400).json({
-          success: false,
-          message: "Statut invalide",
-        });
-      }
-
       group.status = status;
     }
 
@@ -396,7 +291,7 @@ export const updateGroup = async (req, res) => {
       group,
     });
   } catch (error) {
-    console.error("Update group error:", error.message);
+    console.error("Update group error:", error);
 
     return res.status(500).json({
       success: false,
@@ -409,17 +304,10 @@ export const addStudentToGroup = async (req, res) => {
   try {
     const { studentId } = req.body;
 
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(studentId)) {
       return res.status(400).json({
         success: false,
-        message: "Identifiant du groupe invalide",
-      });
-    }
-
-    if (!mongoose.isValidObjectId(studentId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Identifiant de l'élève invalide",
+        message: "Identifiant invalide",
       });
     }
 
@@ -448,7 +336,7 @@ export const addStudentToGroup = async (req, res) => {
       });
     }
 
-    if (group.students.some((id) => id.equals(student._id))) {
+    if (group.students.some((id) => id.toString() === student._id.toString())) {
       return res.status(409).json({
         success: false,
         message: "Cet élève est déjà inscrit dans ce groupe",
@@ -471,7 +359,7 @@ export const addStudentToGroup = async (req, res) => {
       group,
     });
   } catch (error) {
-    console.error("Add student to group error:", error.message);
+    console.error("Add student to group error:", error);
 
     return res.status(500).json({
       success: false,
@@ -484,10 +372,7 @@ export const removeStudentFromGroup = async (req, res) => {
   try {
     const { studentId } = req.body;
 
-    if (
-      !mongoose.isValidObjectId(req.params.id) ||
-      !mongoose.isValidObjectId(studentId)
-    ) {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(studentId)) {
       return res.status(400).json({
         success: false,
         message: "Identifiant invalide",
@@ -507,9 +392,8 @@ export const removeStudentFromGroup = async (req, res) => {
     }
 
     const initialLength = group.students.length;
-
     group.students = group.students.filter(
-      (id) => !id.equals(studentId)
+      (id) => id.toString() !== studentId.toString()
     );
 
     if (group.students.length === initialLength) {
@@ -527,7 +411,7 @@ export const removeStudentFromGroup = async (req, res) => {
       group,
     });
   } catch (error) {
-    console.error("Remove student from group error:", error.message);
+    console.error("Remove student from group error:", error);
 
     return res.status(500).json({
       success: false,
@@ -562,7 +446,7 @@ export const deleteGroup = async (req, res) => {
       message: "Groupe supprimé avec succès",
     });
   } catch (error) {
-    console.error("Delete group error:", error.message);
+    console.error("Delete group error:", error);
 
     return res.status(500).json({
       success: false,
