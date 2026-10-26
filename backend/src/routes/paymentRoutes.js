@@ -1,5 +1,4 @@
 import express from "express";
-
 import {
   createPayment,
   getPayments,
@@ -8,26 +7,31 @@ import {
   deletePayment,
   getPaymentStatistics,
 } from "../controllers/paymentController.js";
-
 import { protect } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/roleMiddleware.js";
+import { validateBody } from "../middleware/validate.js";
+import {
+  createPaymentSchema,
+  updatePaymentSchema,
+} from "../validators/schemas.js";
 
 const router = express.Router();
 
 router.use(protect);
 router.use(authorize("admin", "manager"));
 
+router.get("/statistics", getPaymentStatistics);
+
 router
   .route("/")
   .get(getPayments)
-  .post(createPayment);
-  
-router.get("/statistics", getPaymentStatistics);
+  .post(validateBody(createPaymentSchema), createPayment);
 
 router
   .route("/:id")
   .get(getPaymentById)
-  .patch(updatePayment)
+  .patch(validateBody(updatePaymentSchema), updatePayment)
+  .put(validateBody(updatePaymentSchema), updatePayment)
   .delete(deletePayment);
 
 export default router;
