@@ -1,2 +1,10 @@
-.env
 node_modules
+.env
+.env.*
+!.env.example
+logs/
+*.log
+npm-debug.log*
+coverage/
+.DS_Store
+Thumbs.db

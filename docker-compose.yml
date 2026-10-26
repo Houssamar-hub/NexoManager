@@ -1,0 +1,62 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: nexomanager_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: nexomanager
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - nexonet
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexomanager_backend
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/nexomanager
+      MONGO_URI: mongodb://mongodb:27017/nexomanager
+      JWT_SECRET: production_super_secret_jwt_key_nexomanager_2026
+      JWT_EXPIRES_IN: 7d
+      CLIENT_URL: http://localhost:80
+      ALLOWED_ORIGINS: http://localhost,http://localhost:80,http://localhost:5173
+    ports:
+      - "5000:5000"
+    networks:
+      - nexonet
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: nexomanager_client
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - nexonet
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  nexonet:
+    driver: bridge

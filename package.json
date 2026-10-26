@@ -1,0 +1,31 @@
+{
+  "name": "nexomanager",
+  "version": "1.0.0",
+  "description": "Multi-Tenant SaaS Platform for Learning Center & Tutoring Management",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "client"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:client": "npm run dev --prefix client",
+    "start:backend": "npm start --prefix backend",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build --prefix client",
+    "test": "npm test --prefix backend",
+    "seed": "npm run seed --prefix backend"
+  },
+  "keywords": [
+    "saas",
+    "multi-tenant",
+    "tutoring",
+    "education",
+    "center-management",
+    "react",
+    "nodejs",
+    "mongodb"
+  ],
+  "author": "NexoManager Engineering Team",
+  "license": "UNLICENSED"
+}
