@@ -4,6 +4,7 @@ import {
   exportStudentsExcel,
   exportStudentsPDF,
   exportAttendanceExcel,
+  exportAttendancePDF,
   exportPaymentsExcel,
   exportPaymentsPDF,
 } from "../controllers/reportController.js";
@@ -20,6 +21,7 @@ router.get("/students/excel", exportStudentsExcel);
 router.get("/students/pdf", exportStudentsPDF);
 
 router.get("/attendance/excel", exportAttendanceExcel);
+router.get("/attendance/pdf", exportAttendancePDF);
 
 router.get("/payments/excel", exportPaymentsExcel);
 router.get("/payments/pdf", exportPaymentsPDF);
