@@ -20,6 +20,7 @@ import {
   BookOpen,
   ArrowUpRight,
   ChevronRight,
+  Bell,
 } from "lucide-react";
 import {
   BarChart,
@@ -107,52 +108,71 @@ export const Dashboard: React.FC = () => {
     );
   }
 
-  // Formatting Monthly Data for Earnings Summary (Area Chart)
-  const monthlyData =
-    data.monthlyStatistics && data.monthlyStatistics.length > 0
-      ? data.monthlyStatistics.map((item) => ({
-          name: item.label,
-          collected: item.collected || 0,
-          students: item.newStudents || 0,
-        }))
-      : [
-          { name: "Jan", collected: 4200, students: 8 },
-          { name: "Fév", collected: 6500, students: 12 },
-          { name: "Mar", collected: 9800, students: 15 },
-          { name: "Avr", collected: 14200, students: 18 },
-          { name: "Mai", collected: 18450, students: 22 },
-        ];
+  // Formatting Monthly Data for Earnings Summary (Area Chart) directly from MongoDB
+  const monthlyData = (data.monthlyStatistics || []).map((item) => ({
+    name: item.label,
+    collected: item.collected || 0,
+    students: item.newStudents || 0,
+  }));
 
-  // Bar Chart Data (Sessions / Attendance Volume)
-  const attendanceMonthly = [
-    { name: "Jan", sessions: 28, rate: 88 },
-    { name: "Fév", sessions: 32, rate: 92 },
-    { name: "Mar", sessions: 45, rate: 89 },
-    { name: "Avr", sessions: 52, rate: 94, active: true },
-    { name: "Mai", sessions: 48, rate: 91 },
-    { name: "Juin", sessions: 40, rate: 85 },
-  ];
+  // Bar Chart Data (Sessions / Attendance Volume) directly from MongoDB
+  const attendanceMonthly = (data.monthlyStatistics || []).map((item, idx, arr) => ({
+    name: item.label,
+    sessions: item.sessionsCount || 0,
+    rate: item.attendanceRate || 0,
+    active: idx === arr.length - 1,
+  }));
 
-  // Payment Status Distribution (Donut Chart)
-  const totalAmount = data.finance?.totalAmount || 1;
-  const paidPct = Math.round(((data.finance?.totalPaid || 0) / totalAmount) * 100) || 65;
-  const overduePct =
-    Math.round(((data.finance?.overdueAmount || 0) / totalAmount) * 100) || 15;
-  const pendingPct = Math.max(0, 100 - paidPct - overduePct);
+  // Real Month-Over-Month Trends
+  const currentMonthStats = data.monthlyStatistics?.[data.monthlyStatistics.length - 1];
+  const previousMonthStats = data.monthlyStatistics?.[data.monthlyStatistics.length - 2];
 
-  const paymentPieData = [
-    { name: "Encaissé", value: paidPct, color: "#0F172A" }, // Dark slate
-    { name: "En attente", value: pendingPct, color: "#E11D48" }, // Crimson
-    { name: "En retard", value: overduePct, color: "#CBD5E1" }, // Slate light
-  ];
+  const calculateTrend = (current = 0, previous = 0) => {
+    if (!previous || previous === 0) {
+      return current > 0 ? { value: "+100%", isPositive: true } : undefined;
+    }
+    const diff = ((current - previous) / previous) * 100;
+    const sign = diff >= 0 ? "+" : "";
+    return {
+      value: `${sign}${diff.toFixed(1)}%`,
+      isPositive: diff >= 0,
+    };
+  };
 
-  // School level distribution breakdown
-  const levelDistribution = [
-    { name: "2ème Bac (Sciences Maths & PC)", count: 28, pct: 45, color: "bg-rose-500" },
-    { name: "1ère Bac (Expérimentales)", count: 18, pct: 28, color: "bg-slate-800" },
-    { name: "Tronc Commun Scientifique", count: 12, pct: 18, color: "bg-blue-500" },
-    { name: "Collège (3ème Année)", count: 6, pct: 9, color: "bg-emerald-500" },
-  ];
+  const revenueTrend = calculateTrend(
+    currentMonthStats?.collected,
+    previousMonthStats?.collected
+  );
+  const studentsTrend = calculateTrend(
+    currentMonthStats?.newStudents,
+    previousMonthStats?.newStudents
+  );
+  const attendanceTrend = calculateTrend(
+    currentMonthStats?.attendanceRate,
+    previousMonthStats?.attendanceRate
+  );
+
+  // Payment Status Distribution (Donut Chart) based on real finances
+  const totalAmount = data.finance?.totalAmount || 0;
+  const paidAmount = data.finance?.totalPaid || 0;
+  const overdueAmount = data.finance?.overdueAmount || 0;
+
+  const paidPct = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
+  const overduePct = totalAmount > 0 ? Math.round((overdueAmount / totalAmount) * 100) : 0;
+  const pendingPct = totalAmount > 0 ? Math.max(0, 100 - paidPct - overduePct) : 0;
+
+  const paymentPieData = totalAmount > 0
+    ? [
+        { name: "Encaissé", value: paidPct, color: "#0F172A" },
+        { name: "En attente", value: pendingPct, color: "#E11D48" },
+        { name: "En retard", value: overduePct, color: "#CBD5E1" },
+      ]
+    : [{ name: "Aucun paiement", value: 100, color: "#E2E8F0" }];
+
+  // School level distribution from real MongoDB records
+  const levelDistribution = data.levelDistribution && data.levelDistribution.length > 0
+    ? data.levelDistribution
+    : [];
 
   return (
     <div className="space-y-6">
@@ -165,7 +185,7 @@ export const Dashboard: React.FC = () => {
           value={formatCurrency(data.finance?.totalPaid || 0)}
           subtitle="Encaissements confirmés"
           icon={<CreditCard className="w-5 h-5 text-rose-600" />}
-          trend={{ value: "+2.86%", isPositive: true }}
+          trend={revenueTrend}
         />
 
         {/* Élèves Actifs */}
@@ -174,7 +194,7 @@ export const Dashboard: React.FC = () => {
           value={`${data.overview?.students?.active || 0} Élèves`}
           subtitle={`${data.overview?.students?.total || 0} inscrits au total`}
           icon={<Users className="w-5 h-5 text-slate-800" />}
-          trend={{ value: "+1.72%", isPositive: true }}
+          trend={studentsTrend}
         />
 
         {/* Taux de Présence */}
@@ -183,7 +203,7 @@ export const Dashboard: React.FC = () => {
           value={`${data.attendance?.currentMonth?.attendanceRate || 0}%`}
           subtitle="Moyenne du mois en cours"
           icon={<Percent className="w-5 h-5 text-emerald-600" />}
-          trend={{ value: "+3.45%", isPositive: true }}
+          trend={attendanceTrend}
         />
 
         {/* Groupes & Classes */}
